@@ -13,7 +13,12 @@ class VerificarVagasCommandTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        config(['vagas.github.repositorios' => ['exemplo/um', 'exemplo/dois']]);
+        // Só os dois repositórios simulados: Gupy e Remotive têm teste próprio.
+        config([
+            'vagas.github.repositorios' => ['exemplo/um', 'exemplo/dois'],
+            'vagas.gupy.ativa' => false,
+            'vagas.remotive.ativa' => false,
+        ]);
     }
 
     private function issue(int $numero, string $titulo): array
