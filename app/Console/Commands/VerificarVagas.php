@@ -2,6 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Avisos\Avisador;
+use App\Avisos\Telegram;
 use App\Vagas\Monitor;
 use App\Vagas\VagaEncontrada;
 use Illuminate\Console\Attributes\Description;
@@ -38,8 +40,39 @@ class VerificarVagas extends Command
             $this->line('Lidas há pouco, ficam para a próxima: '.implode(', ', $resultado->puladas).'.');
         }
 
+        // Simulando, nunca avisa. O aviso cobre todas as pendentes, não só as
+        // desta execução: as que falharam antes vão junto.
+        if (! $simular) {
+            $this->avisar();
+        }
+
         // Falha de fonte não é falha do comando: as outras fontes rodaram, e
         // a próxima execução tenta de novo. Só falha se todas falharem.
         return $resultado->todasFalharam() ? self::FAILURE : self::SUCCESS;
+    }
+
+    private function avisar(): void
+    {
+        if (! config('vagas.avisos.ativos')) {
+            return;
+        }
+
+        $token = config('vagas.avisos.telegram.token');
+        $chatId = config('vagas.avisos.telegram.chat_id');
+        if (! $token || ! $chatId) {
+            $this->warn('Avisos ligados, mas o Telegram não está configurado: rode php artisan vagas:configurar-telegram.');
+
+            return;
+        }
+
+        $aviso = (new Avisador(new Telegram($token), (string) $chatId))->avisarPendentes();
+
+        if ($aviso->avisadas > 0) {
+            $this->info("{$aviso->avisadas} vaga(s) avisada(s) no Telegram.");
+        }
+
+        if ($aviso->erro !== null) {
+            $this->warn("O aviso no Telegram falhou, e as vagas pendentes vão na próxima execução: {$aviso->erro}");
+        }
     }
 }
