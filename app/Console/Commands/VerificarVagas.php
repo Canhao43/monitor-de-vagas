@@ -34,6 +34,10 @@ class VerificarVagas extends Command
             $this->warn("A fonte {$fonte} falhou: {$motivo}");
         }
 
+        if ($resultado->puladas !== []) {
+            $this->line('Lidas há pouco, ficam para a próxima: '.implode(', ', $resultado->puladas).'.');
+        }
+
         // Falha de fonte não é falha do comando: as outras fontes rodaram, e
         // a próxima execução tenta de novo. Só falha se todas falharem.
         return $resultado->todasFalharam() ? self::FAILURE : self::SUCCESS;

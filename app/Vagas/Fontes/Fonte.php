@@ -21,4 +21,10 @@ interface Fonte
      * a fonte guarda o que precisa para a próxima busca ser incremental.
      */
     public function confirmarLeitura(): void;
+
+    /**
+     * O menor intervalo entre duas leituras. O monitor roda de hora em hora,
+     * mas uma fonte pode pedir menos: o Remotive aceita no máximo 4 por dia.
+     */
+    public function intervaloMinimoEmMinutos(): int;
 }

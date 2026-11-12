@@ -10,6 +10,9 @@ final class Resultado
     /** @var array<string, string> nome da fonte => motivo */
     public array $falhas = [];
 
+    /** @var list<string> fontes lidas há menos tempo que o intervalo delas */
+    public array $puladas = [];
+
     public int $fontesConsultadas = 0;
 
     public function todasFalharam(): bool

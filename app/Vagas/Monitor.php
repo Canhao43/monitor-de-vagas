@@ -4,7 +4,9 @@ namespace App\Vagas;
 
 use App\Models\Vaga;
 use App\Vagas\Fontes\Fonte;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -30,6 +32,15 @@ final class Monitor
         $resultado = new Resultado;
 
         foreach ($this->fontes as $fonte) {
+            // Fonte lida há menos tempo que o intervalo dela fica para a
+            // próxima execução, inclusive na simulação: uma leitura simulada
+            // também conta para o limite da fonte.
+            if (! $this->podeLer($fonte)) {
+                $resultado->puladas[] = $fonte->nome();
+
+                continue;
+            }
+
             $resultado->fontesConsultadas++;
 
             try {
@@ -43,6 +54,9 @@ final class Monitor
 
                 if (! $simular) {
                     $fonte->confirmarLeitura();
+                    // Só a leitura que deu certo marca o relógio: a que falhou
+                    // é tentada de novo na próxima execução.
+                    Cache::forever($this->chaveDaUltimaLeitura($fonte), now()->toIso8601String());
                 }
             } catch (Throwable $erro) {
                 $resultado->falhas[$fonte->nome()] = $erro->getMessage();
@@ -51,6 +65,19 @@ final class Monitor
         }
 
         return $resultado;
+    }
+
+    private function podeLer(Fonte $fonte): bool
+    {
+        $ultima = Cache::get($this->chaveDaUltimaLeitura($fonte));
+
+        return $ultima === null
+            || CarbonImmutable::parse($ultima)->addMinutes($fonte->intervaloMinimoEmMinutos())->lte(now());
+    }
+
+    private function chaveDaUltimaLeitura(Fonte $fonte): string
+    {
+        return 'vagas:ultima-leitura:'.$fonte->nome();
     }
 
     private function jaVista(VagaEncontrada $vaga): bool

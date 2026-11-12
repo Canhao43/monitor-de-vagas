@@ -12,8 +12,8 @@ Feito para uso real: o autor está procurando vaga e usa o monitor.
 
 | Marco | O que entra | Estado |
 |---|---|---|
-| **M1** | Vaga, filtro e deduplicação, com a primeira fonte: repositórios de vagas do GitHub | 🟡 em revisão |
-| **M2** | Gupy e Remotive como fontes; uma fonte fora do ar não derruba as outras | — |
+| **M1** | Vaga, filtro e deduplicação, com a primeira fonte: repositórios de vagas do GitHub | ✅ |
+| **M2** | Gupy e Remotive como fontes, intervalo mínimo por fonte, filtro de região e de idade | 🟡 em revisão |
 | **M3** | Aviso no Telegram, só depois de confirmado o envio; chave de desligar | — |
 | **M4** | Agendamento no Windows, registro de decisões e README final | — |
 
@@ -41,11 +41,15 @@ Tudo no `.env`, sem mexer em código:
 
 | Variável | Padrão | O que faz |
 |---|---|---|
-| `VAGAS_TERMOS` | `php,laravel,back-end,backend,protheus` | A vaga entra se o título ou os rótulos tiverem ao menos um |
-| `VAGAS_EXCLUIR` | `estagio,estagiario,trainee,junior,jr` | A vaga sai se tiver algum |
+| `VAGAS_TERMOS` | `php,laravel,protheus` | A vaga entra se o título (ou os rótulos, no GitHub) tiver ao menos um |
+| `VAGAS_EXCLUIR` | `estagio,estagiario,trainee,junior,jr,banco de talentos` | A vaga sai se tiver algum |
+| `VAGAS_DIAS_MAXIMOS` | `30` | Vaga publicada há mais tempo provavelmente já foi preenchida |
+| `VAGAS_REGIOES_ACEITAS` | `worldwide,anywhere,brazil,brasil,latam,latin america,americas,south america` | Só para vaga que restringe de onde aceita candidato ("USA Only" sai) |
 | `VAGAS_SOMENTE_REMOTAS` | `true` | Vaga que não diz se é remota conta como não remota |
 | `VAGAS_GITHUB_REPOSITORIOS` | `backend-br/vagas,phpdevbr/vagas` | Repositórios em que cada vaga é uma issue aberta |
 | `VAGAS_GITHUB_TOKEN` | vazio | Opcional. Sem ele, a API pública do GitHub dá 60 requisições por hora |
+| `VAGAS_GUPY_ATIVA` / `VAGAS_GUPY_BUSCAS` | `true` / `php,laravel,protheus` | A busca da Gupy é pelo título: um pedido por termo |
+| `VAGAS_REMOTIVE_ATIVA` / `VAGAS_REMOTIVE_CATEGORIA` | `true` / `software-dev` | Um pedido só, pela categoria; o filtro faz o resto |
 
 A comparação ignora maiúscula e acento e usa palavra inteira: `php` não casa com `PHPUnit`, e `jr` não tira uma vaga da "Jrsoft".
 
@@ -55,6 +59,8 @@ A comparação ignora maiúscula e acento e usa palavra inteira: `php` não casa
 flowchart LR
     F1[(backend-br/vagas)] --> M
     F2[(phpdevbr/vagas)] --> M
+    F3[(Gupy)] --> M
+    F4[("Remotive<br/>no máximo 4 por dia")] --> M
     M["Monitor<br/>lê cada fonte"] --> FI{"Filtro<br/>do perfil"}
     FI -->|bate| DB[("vagas<br/>chave única: fonte + id")]
     DB -->|"gravou agora"| N["Nova"]
@@ -73,9 +79,19 @@ flowchart LR
 | **Filtro em título e rótulos** | O `backend-br` marca o nível ("Júnior", "Pleno") e o modelo ("Remoto") como rótulos, não no título | Só o título |
 | **Remota desconhecida não passa** quando o perfil exige remota | Melhor perder uma vaga ambígua do que avisar uma presencial | Tratar desconhecida como remota |
 | **O CI lê as fontes de verdade, em modo simulação** | Os testes usam respostas gravadas. Só a chamada real pega uma mudança de formato da fonte | Só testes com resposta gravada |
+| **Cada fonte tem um intervalo mínimo entre leituras** (GitHub: nenhum; Gupy: 1 h; Remotive: 6 h) | O monitor roda de hora em hora, mas os termos do Remotive pedem no máximo 4 leituras por dia. Só a leitura que deu certo marca o relógio: a que falhou é tentada na execução seguinte | Rodar o monitor 4 vezes por dia para todas as fontes, atrasando as que não têm limite |
+| **A simulação respeita o intervalo, mas não marca o relógio** | Uma leitura simulada também é uma leitura para o Remotive. E a execução de verdade seguinte não deve ficar sem ler | Simulação sem limite nenhum |
+| **No Remotive, um pedido só, pela categoria** | Um pedido por termo multiplicaria as leituras que os termos limitam. O filtro do perfil separa o que interessa | Um pedido por termo, como na Gupy |
+| **No Remotive, o filtro olha só o título** | Os rótulos de lá são amplos demais: uma vaga de assistente de escritório vem com `php` | Usar os rótulos, como no GitHub |
+| **O Remotive fica fora da leitura de verdade no CI** | Os runners do GitHub dividem IP: cada push gastaria uma das 4 leituras do dia. O formato dele é coberto pelo teste com resposta gravada | Ler o Remotive a cada push |
+| **A Gupy é lida sem disfarce de navegador** | É o endereço que o próprio portal usa. Se a Gupy passar a barrar robô, a fonte sai, em vez de contornar o bloqueio | User-agent de navegador |
+| **Idade máxima de 30 dias** | A Gupy devolve, na mesma busca, vagas de 2021 e páginas de empresa desativadas. Com o limite, 35 vagas viraram 11 numa leitura real | Avisar tudo o que a fonte devolve |
+| **Região aceita** para vaga que restringe de onde contrata | Vaga remota "USA Only" é ruído para quem mora no Brasil | Ignorar a região |
+| **Os testes nunca saem para a internet** (`Http::preventStrayRequests`) | Uma fonte esquecida no `Http::fake` ia para a rede de verdade, e o teste passava ou falhava conforme a fonte respondia. Aconteceu no M2 | Confiar que todo teste simula todas as fontes |
 
 ## Limites conhecidos
 
-- `back-end` no perfil traz vagas de outras stacks (Java, Node, .NET). Tirar o termo de `VAGAS_TERMOS` deixa só PHP, Laravel e Protheus.
+- **A Gupy não tem API documentada**: o monitor usa o endereço que o próprio portal usa, que pode mudar sem aviso. O CI lê a Gupy de verdade a cada push para perceber cedo.
+- **O Remotive mostra as vagas com 24 horas de atraso**, pelos termos de uso dele.
 - Na primeira execução, toda vaga aberta que bate com o perfil é "nova". O M3 decide como avisar essa carga inicial sem mandar dezenas de mensagens.
 - Vaga fechada na fonte continua no banco: o monitor não apaga nada.
