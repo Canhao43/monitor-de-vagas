@@ -20,13 +20,20 @@ class MonitorTest extends TestCase
      *
      * @param  list<VagaEncontrada>  $vagas
      */
-    private function fonte(string $nome, array $vagas = [], bool $falha = false): Fonte
+    private function fonte(string $nome, array $vagas = [], bool $falha = false, int $intervalo = 0): Fonte
     {
-        return new class($nome, $vagas, $falha) implements Fonte
+        return new class($nome, $vagas, $falha, $intervalo) implements Fonte
         {
             public int $confirmacoes = 0;
 
-            public function __construct(private string $nome, private array $vagas, private bool $falha) {}
+            public int $leituras = 0;
+
+            public function __construct(private string $nome, private array $vagas, public bool $falha, private int $intervalo) {}
+
+            public function intervaloMinimoEmMinutos(): int
+            {
+                return $this->intervalo;
+            }
 
             public function nome(): string
             {
@@ -35,6 +42,8 @@ class MonitorTest extends TestCase
 
             public function buscar(): array
             {
+                $this->leituras++;
+
                 if ($this->falha) {
                     throw new RuntimeException('fonte fora do ar');
                 }
@@ -124,5 +133,52 @@ class MonitorTest extends TestCase
         $this->assertCount(1, $resultado->novas);
         $this->assertFalse($resultado->todasFalharam());
         $this->assertSame(0, $quebrada->confirmacoes);
+    }
+
+    public function test_fonte_lida_ha_pouco_fica_para_a_proxima_execucao(): void
+    {
+        $this->travelTo('2026-11-12 08:00:00');
+        $remotive = $this->fonte('remotive', [$this->vaga('remotive', '1')], intervalo: 360);
+        $github = $this->fonte('github', [$this->vaga('github', '1')]);
+        $monitor = $this->monitor($remotive, $github);
+
+        $monitor->verificar();
+        $this->travel(5)->hours();
+        $resultado = $monitor->verificar();
+
+        // O Remotive pede no máximo 4 leituras por dia; o GitHub não tem intervalo.
+        $this->assertSame(['remotive'], $resultado->puladas);
+        $this->assertSame(1, $remotive->leituras);
+        $this->assertSame(2, $github->leituras);
+
+        $this->travel(1)->hours();
+        $monitor->verificar();
+        $this->assertSame(2, $remotive->leituras);
+    }
+
+    public function test_leitura_que_falhou_nao_marca_o_relogio(): void
+    {
+        $fonte = $this->fonte('remotive', falha: true, intervalo: 360);
+        $monitor = $this->monitor($fonte);
+
+        $monitor->verificar();
+        $fonte->falha = false;
+        $this->travel(1)->hours();
+        $resultado = $monitor->verificar();
+
+        // Falhou na primeira: a segunda tenta de novo, sem esperar 6 horas.
+        $this->assertSame([], $resultado->puladas);
+        $this->assertSame(2, $fonte->leituras);
+    }
+
+    public function test_simulacao_respeita_o_intervalo_mas_nao_marca_o_relogio(): void
+    {
+        $fonte = $this->fonte('remotive', [$this->vaga('remotive', '1')], intervalo: 360);
+        $monitor = $this->monitor($fonte);
+
+        $monitor->verificar(simular: true);
+        $this->assertCount(1, $monitor->verificar()->novas);
+
+        $this->assertSame(['remotive'], $monitor->verificar(simular: true)->puladas);
     }
 }

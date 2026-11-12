@@ -26,6 +26,15 @@ final class RepositorioDeVagasDoGithub implements Fonte
         return "github:{$this->repositorio}";
     }
 
+    /**
+     * Sem intervalo: a requisição condicional faz a leitura sem mudança sair
+     * barata, e a cota anônima (60 por hora) sobra para duas por execução.
+     */
+    public function intervaloMinimoEmMinutos(): int
+    {
+        return 0;
+    }
+
     public function buscar(): array
     {
         $cabecalhos = [
