@@ -56,6 +56,10 @@ jobs:
       - name: Simulação contra as fontes de verdade
         env:
           VAGAS_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # O Remotive pede no máximo 4 leituras por dia, e os runners do
+          # GitHub dividem IP: cada push gastaria uma leitura. Fica de fora aqui;
+          # o formato dele é coberto pelo teste com resposta gravada.
+          VAGAS_REMOTIVE_ATIVA: false
         run: |
           php artisan vagas:verificar --simular | tee saida.txt
           grep -q "Simulação:" saida.txt
