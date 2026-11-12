@@ -43,4 +43,16 @@ return [
         'categoria' => env('VAGAS_REMOTIVE_CATEGORIA', 'software-dev'),
     ],
 
+    'avisos' => [
+        // A chave de desligar. Desligado, as vagas novas continuam sendo
+        // gravadas, e o aviso delas fica pendente até ligar de novo.
+        'ativos' => (bool) env('VAGAS_AVISOS_ATIVOS', false),
+
+        // Gravados pelo comando vagas:configurar-telegram, só no .env.
+        'telegram' => [
+            'token' => env('TELEGRAM_BOT_TOKEN'),
+            'chat_id' => env('TELEGRAM_CHAT_ID'),
+        ],
+    ],
+
 ];
