@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    name: Testes e estilo (PHP 8.4)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Dependências
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Ambiente
+        run: cp .env.example .env && php artisan key:generate
+
+      - name: Estilo (Pint)
+        run: vendor/bin/pint --test
+
+      - name: Testes
+        run: php artisan test
+
+  fontes:
+    name: Fontes de verdade, só leitura
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Prepara o ambiente
+        run: |
+          composer install --no-interaction --prefer-dist --no-progress
+          cp .env.example .env && php artisan key:generate
+          touch database/database.sqlite
+          php artisan migrate --force
+
+      # Os testes usam respostas gravadas. Esta etapa confere que o formato
+      # real das fontes ainda é o que o código espera. Com o token do próprio
+      # Actions, para não dividir a cota anônima do GitHub com outros runners.
+      - name: Simulação contra as fontes de verdade
+        env:
+          VAGAS_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          php artisan vagas:verificar --simular | tee saida.txt
+          grep -q "Simulação:" saida.txt
+          if grep -q "falhou" saida.txt; then echo "Alguma fonte falhou"; exit 1; fi
+          test "$(sqlite3 database/database.sqlite 'SELECT COUNT(*) FROM vagas')" = "0" && echo "Simulação não gravou nada"
