@@ -65,3 +65,15 @@ jobs:
           grep -q "Simulação:" saida.txt
           if grep -q "falhou" saida.txt; then echo "Alguma fonte falhou"; exit 1; fi
           test "$(sqlite3 database/database.sqlite 'SELECT COUNT(*) FROM vagas')" = "0" && echo "Simulação não gravou nada"
+
+      - name: Sintaxe dos scripts do agendador do Windows
+        shell: pwsh
+        run: |
+          $falhou = $false
+          foreach ($script in Get-ChildItem scripts/*.ps1) {
+            $erros = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($script.FullName, [ref]$null, [ref]$erros) | Out-Null
+            if ($erros) { $falhou = $true; $erros | ForEach-Object { Write-Host "$($script.Name): $($_.Message)" } }
+            else { Write-Host "$($script.Name): ok" }
+          }
+          if ($falhou) { exit 1 }
