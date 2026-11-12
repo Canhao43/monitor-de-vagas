@@ -10,10 +10,18 @@ return [
     */
     'termos' => $lista(env('VAGAS_TERMOS', 'php,laravel,back-end,backend,protheus')),
 
-    'excluir' => $lista(env('VAGAS_EXCLUIR', 'estagio,estagiario,trainee,junior,jr')),
+    'excluir' => $lista(env('VAGAS_EXCLUIR', 'estagio,estagiario,trainee,junior,jr,banco de talentos')),
+
+    // Vaga publicada há mais tempo que isso provavelmente já foi preenchida.
+    // A Gupy devolve vagas de anos atrás na mesma busca das de hoje.
+    'dias_maximos' => (int) env('VAGAS_DIAS_MAXIMOS', 30),
 
     // Vaga que não diz se é remota conta como não remota.
     'somente_remotas' => (bool) env('VAGAS_SOMENTE_REMOTAS', true),
+
+    // Só vale para vaga que restringe de onde aceita candidato (o Remotive
+    // diz: "Worldwide", "USA Only", "LATAM"). Vaga sem restrição passa.
+    'regioes_aceitas' => $lista(env('VAGAS_REGIOES_ACEITAS', 'worldwide,anywhere,brazil,brasil,latam,latin america,americas,south america')),
 
     'github' => [
         // Repositórios de vagas em que cada vaga é uma issue aberta.
@@ -22,6 +30,17 @@ return [
         // Opcional. Sem token, a API pública dá 60 requisições por hora por
         // IP, e o monitor faz uma por repositório a cada execução.
         'token' => env('VAGAS_GITHUB_TOKEN'),
+    ],
+
+    'gupy' => [
+        'ativa' => (bool) env('VAGAS_GUPY_ATIVA', true),
+        // A busca da Gupy é pelo título e estreita: termos curtos, um por pedido.
+        'buscas' => $lista(env('VAGAS_GUPY_BUSCAS', 'php,laravel,back-end,protheus')),
+    ],
+
+    'remotive' => [
+        'ativa' => (bool) env('VAGAS_REMOTIVE_ATIVA', true),
+        'categoria' => env('VAGAS_REMOTIVE_CATEGORIA', 'software-dev'),
     ],
 
 ];

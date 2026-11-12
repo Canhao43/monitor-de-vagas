@@ -21,5 +21,8 @@ final readonly class VagaEncontrada
         public ?string $empresa = null,
         public ?CarbonImmutable $publicadaEm = null,
         public array $etiquetas = [],
+        // De onde a vaga aceita candidato, quando a fonte diz ("Worldwide",
+        // "USA Only", "LATAM"). Nulo quando a fonte não restringe.
+        public ?string $regiao = null,
     ) {}
 }
