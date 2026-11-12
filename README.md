@@ -13,8 +13,8 @@ Feito para uso real: o autor está procurando vaga e usa o monitor.
 | Marco | O que entra | Estado |
 |---|---|---|
 | **M1** | Vaga, filtro e deduplicação, com a primeira fonte: repositórios de vagas do GitHub | ✅ |
-| **M2** | Gupy e Remotive como fontes, intervalo mínimo por fonte, filtro de região e de idade | 🟡 em revisão |
-| **M3** | Aviso no Telegram, só depois de confirmado o envio; chave de desligar | — |
+| **M2** | Gupy e Remotive como fontes, intervalo mínimo por fonte, filtro de região e de idade | ✅ |
+| **M3** | Aviso no Telegram, só depois de confirmado o envio; chave de desligar | 🟡 em revisão |
 | **M4** | Agendamento no Windows, registro de decisões e README final | — |
 
 ## Como rodar
@@ -34,6 +34,15 @@ php artisan vagas:verificar             # grava as novas
 ```
 
 > **Windows:** se aparecer `cURL error 60`, o PHP não tem a lista de certificados. Aponte `curl.cainfo` e `openssl.cafile` no `php.ini` para um pacote de certificados (o Git para Windows traz um em `C:\Program Files\Git\usr\ssl\certs\ca-bundle.crt`).
+
+## Avisos no Telegram
+
+1. No Telegram, fale com o [@BotFather](https://t.me/BotFather), mande `/newbot` e escolha um nome e um usuário terminado em `bot`. Ele responde com o token.
+2. No terminal, na pasta do projeto: `php artisan vagas:configurar-telegram`. O comando pede o token **com a digitação escondida**, confere o bot, pede um `/start` na conversa com ele, descobre o seu chat e grava `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` e `VAGAS_AVISOS_ATIVOS=true` no `.env`. No fim, manda uma mensagem de teste.
+
+O token vai do BotFather para o terminal, e do terminal só para o `.env`, que o git ignora. Não passa por chat, log nem código.
+
+Depois disso, cada `vagas:verificar` (sem `--simular`) manda as vagas novas numa mensagem, com até 10 por mensagem. `VAGAS_AVISOS_ATIVOS=false` desliga os avisos sem parar o monitor: as vagas continuam sendo gravadas e o aviso delas fica pendente.
 
 ## O perfil
 
@@ -88,10 +97,17 @@ flowchart LR
 | **Idade máxima de 30 dias** | A Gupy devolve, na mesma busca, vagas de 2021 e páginas de empresa desativadas. Com o limite, 35 vagas viraram 11 numa leitura real | Avisar tudo o que a fonte devolve |
 | **Região aceita** para vaga que restringe de onde contrata | Vaga remota "USA Only" é ruído para quem mora no Brasil | Ignorar a região |
 | **Os testes nunca saem para a internet** (`Http::preventStrayRequests`) | Uma fonte esquecida no `Http::fake` ia para a rede de verdade, e o teste passava ou falhava conforme a fonte respondia. Aconteceu no M2 | Confiar que todo teste simula todas as fontes |
+| **Aviso "pelo menos uma vez"**: a vaga só é marcada como avisada depois que o Telegram confirma | Se o programa cair entre o envio e a marcação, a vaga é avisada de novo. Melhor repetir um aviso do que perder uma vaga | Marcar antes de enviar ("no máximo uma vez"), que perde a vaga numa queda |
+| **Vagas agrupadas: até 10 por mensagem**, sem passar do limite de 4.096 caracteres do Telegram | A primeira execução, ou a volta de um aviso desligado, não inunda o celular | Uma mensagem por vaga |
+| **No primeiro erro do Telegram, inclusive o `429`, para** | O que sobrou fica pendente e vai na próxima execução, uma hora depois. Esperar o `retry_after` prenderia a execução agendada | Esperar e tentar de novo na mesma execução |
+| **Cada vaga diz de que fonte veio** | Os termos do Remotive pedem isso, e serve para todas | Só o link |
+| **O token entra por um comando, com a digitação escondida, e vai só para o `.env`** | Não passa por chat, log nem código. O erro do Telegram é mostrado sem a URL, que contém o token | Pedir para colar o token num arquivo, ou mandar por mensagem |
+| **O chat é descoberto pelo `/start`, e só em conversa privada** | Ninguém precisa achar o próprio id. Um `/start` mandado num grupo onde o bot está não vira o destino dos avisos | Pedir o id do chat |
+| **Chave de desligar sem parar o monitor** (`VAGAS_AVISOS_ATIVOS`) | Desligado, as vagas continuam sendo gravadas, e o aviso fica pendente até ligar de novo | Desligar o monitor inteiro |
 
 ## Limites conhecidos
 
 - **A Gupy não tem API documentada**: o monitor usa o endereço que o próprio portal usa, que pode mudar sem aviso. O CI lê a Gupy de verdade a cada push para perceber cedo.
 - **O Remotive mostra as vagas com 24 horas de atraso**, pelos termos de uso dele.
-- Na primeira execução, toda vaga aberta que bate com o perfil é "nova". O M3 decide como avisar essa carga inicial sem mandar dezenas de mensagens.
+- Se o Telegram falhar por dias (token revogado, por exemplo), o aviso não chega e ninguém é avisado disso: fica só o alerta na saída do comando e no log.
 - Vaga fechada na fonte continua no banco: o monitor não apaga nada.
