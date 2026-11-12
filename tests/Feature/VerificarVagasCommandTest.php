@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Vaga;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 class VerificarVagasCommandTest extends TestCase
@@ -129,5 +130,30 @@ class VerificarVagasCommandTest extends TestCase
 
         $this->assertDatabaseHas('vagas', ['id_externo' => '1', 'avisada_em' => null]);
         Http::assertNotSent(fn ($pedido) => str_contains($pedido->url(), 'telegram'));
+    }
+
+    public function test_cada_execucao_deixa_uma_linha_no_log(): void
+    {
+        Http::fake([
+            'api.github.com/repos/exemplo/um/*' => Http::response([$this->issue(1, '[Remoto] Desenvolvedor PHP Pleno')]),
+            'api.github.com/repos/exemplo/dois/*' => Http::response([], 500),
+        ]);
+        Log::spy();
+
+        $this->artisan('vagas:verificar')->assertSuccessful();
+
+        Log::shouldHaveReceived('info')->once()->withArgs(fn ($mensagem, $contexto) => $mensagem === 'Verificação de vagas'
+            && $contexto['novas'] === 1
+            && $contexto['falhas'] === ['github:exemplo/dois']);
+    }
+
+    public function test_simulacao_nao_deixa_linha_no_log(): void
+    {
+        Http::fake(['api.github.com/*' => Http::response([])]);
+        Log::spy();
+
+        $this->artisan('vagas:verificar --simular')->assertSuccessful();
+
+        Log::shouldNotHaveReceived('info');
     }
 }
