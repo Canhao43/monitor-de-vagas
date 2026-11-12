@@ -79,6 +79,15 @@ flowchart LR
 | **Filtro em título e rótulos** | O `backend-br` marca o nível ("Júnior", "Pleno") e o modelo ("Remoto") como rótulos, não no título | Só o título |
 | **Remota desconhecida não passa** quando o perfil exige remota | Melhor perder uma vaga ambígua do que avisar uma presencial | Tratar desconhecida como remota |
 | **O CI lê as fontes de verdade, em modo simulação** | Os testes usam respostas gravadas. Só a chamada real pega uma mudança de formato da fonte | Só testes com resposta gravada |
+| **Cada fonte tem um intervalo mínimo entre leituras** (GitHub: nenhum; Gupy: 1 h; Remotive: 6 h) | O monitor roda de hora em hora, mas os termos do Remotive pedem no máximo 4 leituras por dia. Só a leitura que deu certo marca o relógio: a que falhou é tentada na execução seguinte | Rodar o monitor 4 vezes por dia para todas as fontes, atrasando as que não têm limite |
+| **A simulação respeita o intervalo, mas não marca o relógio** | Uma leitura simulada também é uma leitura para o Remotive. E a execução de verdade seguinte não deve ficar sem ler | Simulação sem limite nenhum |
+| **No Remotive, um pedido só, pela categoria** | Um pedido por termo multiplicaria as leituras que os termos limitam. O filtro do perfil separa o que interessa | Um pedido por termo, como na Gupy |
+| **No Remotive, o filtro olha só o título** | Os rótulos de lá são amplos demais: uma vaga de assistente de escritório vem com `php` | Usar os rótulos, como no GitHub |
+| **O Remotive fica fora da leitura de verdade no CI** | Os runners do GitHub dividem IP: cada push gastaria uma das 4 leituras do dia. O formato dele é coberto pelo teste com resposta gravada | Ler o Remotive a cada push |
+| **A Gupy é lida sem disfarce de navegador** | É o endereço que o próprio portal usa. Se a Gupy passar a barrar robô, a fonte sai, em vez de contornar o bloqueio | User-agent de navegador |
+| **Idade máxima de 30 dias** | A Gupy devolve, na mesma busca, vagas de 2021 e páginas de empresa desativadas. Com o limite, 35 vagas viraram 11 numa leitura real | Avisar tudo o que a fonte devolve |
+| **Região aceita** para vaga que restringe de onde contrata | Vaga remota "USA Only" é ruído para quem mora no Brasil | Ignorar a região |
+| **Os testes nunca saem para a internet** (`Http::preventStrayRequests`) | Uma fonte esquecida no `Http::fake` ia para a rede de verdade, e o teste passava ou falhava conforme a fonte respondia. Aconteceu no M2 | Confiar que todo teste simula todas as fontes |
 
 ## Limites conhecidos
 
