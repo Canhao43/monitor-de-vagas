@@ -1,58 +1,81 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Monitor de vagas
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+[![CI](https://github.com/Canhao43/monitor-de-vagas/actions/workflows/ci.yml/badge.svg)](https://github.com/Canhao43/monitor-de-vagas/actions/workflows/ci.yml)
 
-## About Laravel
+Um comando Laravel que lê fontes de vagas, filtra pelo perfil de quem procura e guarda só as que nunca viu. Roda sozinho, de hora em hora, no agendador do sistema, e (a partir do M3) avisa no Telegram **só as vagas novas**, nunca a mesma duas vezes.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Feito para uso real: o autor está procurando vaga e usa o monitor.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+> Construído com agentes de IA (Claude Code) e revisado por mim em cada PR. As regras que os agentes seguem estão em [`CLAUDE.md`](CLAUDE.md).
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Roteiro
 
-## Learning Laravel
+| Marco | O que entra | Estado |
+|---|---|---|
+| **M1** | Vaga, filtro e deduplicação, com a primeira fonte: repositórios de vagas do GitHub | 🟡 em revisão |
+| **M2** | Gupy e Remotive como fontes; uma fonte fora do ar não derruba as outras | — |
+| **M3** | Aviso no Telegram, só depois de confirmado o envio; chave de desligar | — |
+| **M4** | Agendamento no Windows, registro de decisões e README final | — |
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Como rodar
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+Precisa de PHP 8.4 e Composer.
 
 ```bash
-composer require laravel/boost --dev
+git clone https://github.com/Canhao43/monitor-de-vagas.git
+cd monitor-de-vagas
+composer install
+cp .env.example .env && php artisan key:generate
+touch database/database.sqlite
+php artisan migrate
 
-php artisan boost:install
+php artisan vagas:verificar --simular   # mostra o que seria novo, sem gravar
+php artisan vagas:verificar             # grava as novas
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+> **Windows:** se aparecer `cURL error 60`, o PHP não tem a lista de certificados. Aponte `curl.cainfo` e `openssl.cafile` no `php.ini` para um pacote de certificados (o Git para Windows traz um em `C:\Program Files\Git\usr\ssl\certs\ca-bundle.crt`).
 
-## Contributing
+## O perfil
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Tudo no `.env`, sem mexer em código:
 
-## Code of Conduct
+| Variável | Padrão | O que faz |
+|---|---|---|
+| `VAGAS_TERMOS` | `php,laravel,back-end,backend,protheus` | A vaga entra se o título ou os rótulos tiverem ao menos um |
+| `VAGAS_EXCLUIR` | `estagio,estagiario,trainee,junior,jr` | A vaga sai se tiver algum |
+| `VAGAS_SOMENTE_REMOTAS` | `true` | Vaga que não diz se é remota conta como não remota |
+| `VAGAS_GITHUB_REPOSITORIOS` | `backend-br/vagas,phpdevbr/vagas` | Repositórios em que cada vaga é uma issue aberta |
+| `VAGAS_GITHUB_TOKEN` | vazio | Opcional. Sem ele, a API pública do GitHub dá 60 requisições por hora |
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+A comparação ignora maiúscula e acento e usa palavra inteira: `php` não casa com `PHPUnit`, e `jr` não tira uma vaga da "Jrsoft".
 
-## Security Vulnerabilities
+## Como funciona
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```mermaid
+flowchart LR
+    F1[(backend-br/vagas)] --> M
+    F2[(phpdevbr/vagas)] --> M
+    M["Monitor<br/>lê cada fonte"] --> FI{"Filtro<br/>do perfil"}
+    FI -->|bate| DB[("vagas<br/>chave única: fonte + id")]
+    DB -->|"gravou agora"| N["Nova"]
+    DB -->|"já existia"| X["Ignorada"]
+```
 
-## License
+## Decisões até aqui
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+| Decisão | Por quê | Descartado |
+|---|---|---|
+| **Quem decide se a vaga é nova é a chave única** (fonte + id da vaga na fonte) | Duas execuções ao mesmo tempo não gravam, nem avisam, a mesma vaga duas vezes. A segunda gravação bate na chave e conta como "já vista" | Consultar antes de gravar: entre a consulta e a gravação, outra execução pode gravar |
+| **Requisição condicional no GitHub** (`If-None-Match` com o ETag) | Se nada mudou, a resposta é `304`, sem corpo: nenhuma vaga nova para ver | Baixar tudo a cada execução |
+| **O ETag só é guardado depois que as vagas foram gravadas** | Guardado antes, uma falha na gravação faria a próxima execução receber `304` e perder essas vagas para sempre | Guardar ao receber a resposta |
+| **Uma fonte que falha não derruba as outras** | Cada fonte roda isolada; a falha fica no resultado e no log. O comando só falha se todas falharem | Parar no primeiro erro |
+| **`--simular` não grava nem guarda o ETag** | A execução de verdade seguinte vê exatamente o mesmo que a simulação mostrou | Simular gravando e apagando depois |
+| **Filtro em título e rótulos** | O `backend-br` marca o nível ("Júnior", "Pleno") e o modelo ("Remoto") como rótulos, não no título | Só o título |
+| **Remota desconhecida não passa** quando o perfil exige remota | Melhor perder uma vaga ambígua do que avisar uma presencial | Tratar desconhecida como remota |
+| **O CI lê as fontes de verdade, em modo simulação** | Os testes usam respostas gravadas. Só a chamada real pega uma mudança de formato da fonte | Só testes com resposta gravada |
+
+## Limites conhecidos
+
+- `back-end` no perfil traz vagas de outras stacks (Java, Node, .NET). Tirar o termo de `VAGAS_TERMOS` deixa só PHP, Laravel e Protheus.
+- Na primeira execução, toda vaga aberta que bate com o perfil é "nova". O M3 decide como avisar essa carga inicial sem mandar dezenas de mensagens.
+- Vaga fechada na fonte continua no banco: o monitor não apaga nada.
