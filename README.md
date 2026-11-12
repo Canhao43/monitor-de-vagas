@@ -14,8 +14,8 @@ Feito para uso real: o autor está procurando vaga e usa o monitor.
 |---|---|---|
 | **M1** | Vaga, filtro e deduplicação, com a primeira fonte: repositórios de vagas do GitHub | ✅ |
 | **M2** | Gupy e Remotive como fontes, intervalo mínimo por fonte, filtro de região e de idade | ✅ |
-| **M3** | Aviso no Telegram, só depois de confirmado o envio; chave de desligar | 🟡 em revisão |
-| **M4** | Agendamento no Windows, registro de decisões e README final | — |
+| **M3** | Aviso no Telegram, só depois de confirmado o envio; chave de desligar | ✅ |
+| **M4** | Agendamento no Windows, registro de decisões ([14 ADRs](docs/decisoes/README.md), conferidos pelo build) e README final | 🟡 em revisão |
 
 ## Como rodar
 
@@ -43,6 +43,14 @@ php artisan vagas:verificar             # grava as novas
 O token vai do BotFather para o terminal, e do terminal só para o `.env`, que o git ignora. Não passa por chat, log nem código.
 
 Depois disso, cada `vagas:verificar` (sem `--simular`) manda as vagas novas numa mensagem, com até 10 por mensagem. `VAGAS_AVISOS_ATIVOS=false` desliga os avisos sem parar o monitor: as vagas continuam sendo gravadas e o aviso delas fica pendente.
+
+## Rodar sozinho, de hora em hora (Windows)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\agendar-no-windows.ps1
+```
+
+Registra a tarefa **Monitor de vagas** no Agendador de Tarefas: de hora em hora, só com o usuário logado (não guarda senha), sem janela piscando, sem duas execuções ao mesmo tempo e começando assim que o PC ligar se a hora marcada passou. Cada execução deixa uma linha no log diário em `storage\logs`, guardado por 14 dias. Para desfazer: `scripts\desagendar-no-windows.ps1`.
 
 ## O perfil
 
@@ -76,7 +84,9 @@ flowchart LR
     DB -->|"já existia"| X["Ignorada"]
 ```
 
-## Decisões até aqui
+## Decisões
+
+O registro completo está em [`docs/decisoes`](docs/decisoes/README.md): 14 ADRs, cada um com as alternativas descartadas e o teste ou a etapa do CI que o prova. Um teste quebra o build se um ADR citar uma prova que não existe. Abaixo, o resumo.
 
 | Decisão | Por quê | Descartado |
 |---|---|---|
@@ -104,6 +114,8 @@ flowchart LR
 | **O token entra por um comando, com a digitação escondida, e vai só para o `.env`** | Não passa por chat, log nem código. O erro do Telegram é mostrado sem a URL, que contém o token | Pedir para colar o token num arquivo, ou mandar por mensagem |
 | **O chat é descoberto pelo `/start`, e só em conversa privada** | Ninguém precisa achar o próprio id. Um `/start` mandado num grupo onde o bot está não vira o destino dos avisos | Pedir o id do chat |
 | **Chave de desligar sem parar o monitor** (`VAGAS_AVISOS_ATIVOS`) | Desligado, as vagas continuam sendo gravadas, e o aviso fica pendente até ligar de novo | Desligar o monitor inteiro |
+| **Agendador de Tarefas do Windows, de hora em hora, sem janela** (`conhost --headless`) | Uso pessoal num PC que fica ligado: sem servidor, sem nuvem, sem depender de alguém lembrar de rodar | `schedule:run` a cada minuto (60 execuções por hora para fazer uma) · rodar deslogado, que exige guardar a senha do Windows |
+| **Uma linha de log por execução, em log diário de 14 dias** | Rodando sozinho, é por ela que se confere que o monitor está vivo. Um arquivo único cresceria para sempre | Log só de erro |
 
 ## Limites conhecidos
 
@@ -111,3 +123,8 @@ flowchart LR
 - **O Remotive mostra as vagas com 24 horas de atraso**, pelos termos de uso dele.
 - Se o Telegram falhar por dias (token revogado, por exemplo), o aviso não chega e ninguém é avisado disso: fica só o alerta na saída do comando e no log.
 - Vaga fechada na fonte continua no banco: o monitor não apaga nada.
+- Com o PC desligado, não há leitura. A primeira execução depois de ligar recupera, enquanto as fontes ainda tiverem as vagas.
+
+## Licença
+
+[MIT](LICENSE).
