@@ -8,7 +8,7 @@ return [
     | O perfil. Uma vaga entra se o título tiver ao menos um dos termos e
     | nenhum dos excluídos. A comparação ignora maiúscula e acento.
     */
-    'termos' => $lista(env('VAGAS_TERMOS', 'php,laravel,back-end,backend,protheus')),
+    'termos' => $lista(env('VAGAS_TERMOS', 'php,laravel,protheus')),
 
     'excluir' => $lista(env('VAGAS_EXCLUIR', 'estagio,estagiario,trainee,junior,jr,banco de talentos')),
 
@@ -35,7 +35,7 @@ return [
     'gupy' => [
         'ativa' => (bool) env('VAGAS_GUPY_ATIVA', true),
         // A busca da Gupy é pelo título e estreita: termos curtos, um por pedido.
-        'buscas' => $lista(env('VAGAS_GUPY_BUSCAS', 'php,laravel,back-end,protheus')),
+        'buscas' => $lista(env('VAGAS_GUPY_BUSCAS', 'php,laravel,protheus')),
     ],
 
     'remotive' => [
